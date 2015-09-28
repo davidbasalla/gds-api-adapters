@@ -10,6 +10,13 @@ class GdsApi::PublishingApiV2 < GdsApi::Base
     get_json(content_url(content_id))
   end
 
+  def publish(content_id, update_type:, change_note: nil)
+    post_json!(content_url(content_id) + "/publish", {
+      update_type: update_type,
+      change_note: change_note,
+    })
+  end
+
   private
 
   def content_url(content_id)

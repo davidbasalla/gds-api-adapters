@@ -167,4 +167,135 @@ describe GdsApi::PublishingApiV2 do
     end
   end
 
+  describe "#publish" do
+    it "responds with 200 if the publish command succeeds" do
+      publishing_api
+        .given("a draft content item exists with content_id: #{@content_id}")
+        .upon_receiving("a publish request")
+        .with(
+          method: :post,
+          path: "/v2/content/#{@content_id}/publish",
+          body: {
+            update_type: "major",
+            change_note: "This is the change note."
+          },
+          headers: {
+            "Content-Type" => "application/json",
+          },
+        )
+        .will_respond_with(
+          status: 200
+        )
+
+      response = @api_client.publish(@content_id,
+        update_type: "major",
+        change_note: "This is the change note.",
+      )
+      assert_equal 200, response.code
+    end
+
+    it "responds with 404 if the content item does not exist" do
+      publishing_api
+        .given("no content item exists with content_id: #{@content_id}")
+        .upon_receiving("a publish request")
+        .with(
+          method: :post,
+          path: "/v2/content/#{@content_id}/publish",
+          body: {
+            update_type: "major",
+            change_note: "This is the change note."
+          },
+          headers: {
+            "Content-Type" => "application/json",
+          },
+        )
+        .will_respond_with(
+          status: 404
+        )
+
+      error = assert_raises GdsApi::HTTPClientError do
+        @api_client.publish(@content_id,
+          update_type: "major",
+          change_note: "This is the change note.",
+        )
+      end
+
+      assert_equal 404, error.code
+    end
+
+    it "responds with 422 if the content item is not publishable" do
+      publishing_api
+        .given("an unpublishable content item exists with content_id: #{@content_id}")
+        .upon_receiving("a publish request")
+        .with(
+          method: :post,
+          path: "/v2/content/#{@content_id}/publish",
+          body: {
+            update_type: "major",
+            change_note: "This is the change note."
+          },
+          headers: {
+            "Content-Type" => "application/json",
+          },
+        )
+        .will_respond_with(
+          status: 422,
+          body: {
+            "error" => {
+              "code" => 422, "message" => Pact.term(generate: "Unprocessable entity", matcher:/\S+/),
+              "fields" => {
+                "body" => Pact.each_like("contains invalid Govspeak links", :min => 1),
+              },
+            },
+          }
+        )
+
+      error = assert_raises GdsApi::HTTPClientError do
+        @api_client.publish(@content_id,
+          update_type: "major",
+          change_note: "This is the change note.",
+        )
+      end
+
+      assert_equal 422, error.code
+      assert_equal "Unprocessable entity", error.error_details["error"]["message"]
+    end
+
+    it "responds with 422 if the update information is invalid" do
+      publishing_api
+        .given("an draft content item exists with content_id: #{@content_id}")
+        .upon_receiving("an invalid publish request")
+        .with(
+          method: :post,
+          path: "/v2/content/#{@content_id}/publish",
+          body: {
+            update_type: "major",
+            change_note: nil,
+          },
+          headers: {
+            "Content-Type" => "application/json",
+          },
+        )
+        .will_respond_with(
+          status: 422,
+          body: {
+            "error" => {
+              "code" => 422, "message" => Pact.term(generate: "Unprocessable entity", matcher:/\S+/),
+              "fields" => {
+                "change_note" => Pact.each_like("is required for major updates", :min => 1),
+              },
+            },
+          }
+        )
+
+      error = assert_raises GdsApi::HTTPClientError do
+        @api_client.publish(@content_id,
+          update_type: "major",
+        )
+      end
+
+      assert_equal 422, error.code
+      assert_equal "Unprocessable entity", error.error_details["error"]["message"]
+    end
+  end
 end
